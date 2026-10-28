@@ -1,0 +1,39 @@
+name: Build and deploy plugin
+
+on:
+  push:
+    branches: [main]
+    paths: ["plugin/**", ".github/workflows/**"]
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install deps
+        run: bun install
+
+      - name: Build plugin(s)
+        run: bun run build
+
+      - name: Generate repository index
+        run: >
+          bunx valenced-plugin generate-index
+          --dist build/dist
+          --base-url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          --out build/dist/index.json
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./plugin/build/dist
