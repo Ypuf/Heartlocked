@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "Heartlocked",
+  "description": "Plugins for the heartlocked bot.",
+  "plugins": {
+    "xyz.ypuf.heartlocked": {
+      "name": "Heartlocked",
+      "description": "Dumb mutt internals get edited.",
+      "author": "ypuf",
+      "channels": {
+        "latest": "1.1.0"
+      },
+      "versions": {
+        "1.1.0": {
+          "url": "https://Ypuf.github.io/Heartlocked/xyz.ypuf.heartlocked@1.1.0.zip",
+          "sha256": "658701f899e84a54c14bb0fa005db90343fbb839f77aff9c25a3772786261f0f",
+          "size": 1684,
+          "dependencies": {
+            "valenced.api": {
+              "version": ">=1 <2"
+            },
+            "discord": {
+              "version": "*"
+            }
+          }
+        }
+      }
+    }
+  }
+}
