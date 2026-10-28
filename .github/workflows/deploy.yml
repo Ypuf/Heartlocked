@@ -2,7 +2,7 @@ name: Build and deploy plugin
 
 on:
   push:
-    branches: [main]
+    branches: [inamorata]
     paths: ["plugin/**", ".github/workflows/**"]
 
 permissions:
