@@ -1,0 +1,19 @@
+{
+	"name": "bdsm-valenced-plugins",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "valenced-plugin build && bun scripts/package.ts",
+		"serve": "valenced-plugin serve"
+	},
+	"dependencies": {
+		"@valenced/plugin-cli": "git+https://github.com/Valenced/valenced-plugin-cli.git",
+		"@valenced/types": "git+https://github.com/Valenced/valenced-types.git",
+		"fflate": "^0.8.3"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.18",
+		"typescript": "^7.0.2"
+	},
+	"trustedDependencies": ["@valenced/plugin-cli", "@swc/core"]
+}
