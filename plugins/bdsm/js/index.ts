@@ -1,9 +1,7 @@
 import { lookupModule } from '@valenced/modules/finders'
 import { withProps } from '@valenced/modules/finders/filters'
 import { instead } from '@valenced/patcher'
-
-const SERVER_URL = 'http://95.217.202.166:6501'
-const POLL_MS = 15000
+import { AppState } from 'react-native'
 
 interface Effect {
 	created_at: number
@@ -80,20 +78,36 @@ export default plugin({
 			}
 		}
 
+		let refreshing = false
+
 		async function refresh() {
 			const me = UserStore.getCurrentUser()
-			if (!me) return
+			if (!me || refreshing) return
+
+			refreshing = true
+			const controller = new AbortController()
+			const timeout = setTimeout(() => controller.abort(), 10000)
 			try {
-				const res = await fetch(`${SERVER_URL}/users/${me.id}`)
+				const res = await fetch(`http://95.217.202.166:6501/users/${me.id}`, {
+					signal: controller.signal,
+				})
 				if (res.ok) effects = await res.json()
 			} catch (e) {
 				console.warn('[bdsm] could not reach server', e)
+			} finally {
+				clearTimeout(timeout)
+				refreshing = false
 			}
 		}
 
 		refresh()
-		const interval = setInterval(refresh, POLL_MS)
+		const interval = setInterval(refresh, 15000)
 		cleanup(() => clearInterval(interval))
+
+		const appState = AppState.addEventListener('change', state => {
+			if (state === 'active') refresh()
+		})
+		cleanup(() => appState.remove())
 		cleanup(() => {
 			effects = {}
 		})
