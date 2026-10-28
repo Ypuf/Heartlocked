@@ -8,13 +8,13 @@
       "description": "Dumb mutt internals get edited.",
       "author": "ypuf",
       "channels": {
-        "latest": "1.1.0"
+        "latest": "1.1.1"
       },
       "versions": {
-        "1.1.0": {
-          "url": "https://Ypuf.github.io/Heartlocked/xyz.ypuf.heartlocked@1.1.0.zip",
-          "sha256": "658701f899e84a54c14bb0fa005db90343fbb839f77aff9c25a3772786261f0f",
-          "size": 1684,
+        "1.1.1": {
+          "url": "https://Ypuf.github.io/Heartlocked/xyz.ypuf.heartlocked@1.1.1.zip",
+          "sha256": "60f9aab95410b04496a7293c111cdf1c55817cfdca84264748a8713a993fd8d9",
+          "size": 1815,
           "dependencies": {
             "valenced.api": {
               "version": ">=1 <2"
