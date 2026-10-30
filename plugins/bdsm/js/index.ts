@@ -1,4 +1,4 @@
-import { lookupModule } from '@valenced/modules/finders'
+import { getModules } from '@valenced/modules/finders'
 import { withProps } from '@valenced/modules/finders/filters'
 import { instead } from '@valenced/patcher'
 import { AppState } from 'react-native'
@@ -53,42 +53,31 @@ function requestPath(request: unknown): string {
 
 export default plugin({
 	start({ cleanup }) {
-		const [UserStore] = lookupModule(withProps<any>('getCurrentUser', 'getUser'))
-		const [MessageActions] = lookupModule(
-			withProps<any>('sendMessage', 'editMessage'),
+		let UserStore: any
+		cleanup(
+			getModules(
+				withProps<any>('getCurrentUser', 'getUser'),
+				store => {
+					if (!UserStore || store.getName?.() === 'UserStore') {
+						UserStore = store
+						refresh()
+					}
+				},
+				{ max: 10 },
+			),
 		)
-		const [HTTP] = lookupModule(
-			withProps<any>('getAPIBaseURL', 'setRequestPatch'),
-		)
-
-		if (!UserStore || !MessageActions || !HTTP) {
-			console.error('[bdsm] could not find the discord modules it needs', {
-				UserStore: !!UserStore,
-				MessageActions: !!MessageActions,
-				HTTP: !!HTTP,
-			})
-			return
-		}
-
-		const notify = (channelId: string, text: string) => {
-			try {
-				MessageActions.sendBotMessage(channelId, text)
-			} catch (e) {
-				console.warn('[bdsm] failed to show notice', e)
-			}
-		}
 
 		let refreshing = false
 
 		async function refresh() {
-			const me = UserStore.getCurrentUser()
+			const me = UserStore?.getCurrentUser()
 			if (!me || refreshing) return
 
 			refreshing = true
 			const controller = new AbortController()
 			const timeout = setTimeout(() => controller.abort(), 10000)
 			try {
-				const res = await fetch(`http://95.217.202.166:6501/users/${me.id}`, {
+				const res = await fetch(`https://bdsm.jpuf.xyz/users/${me.id}`, {
 					signal: controller.signal,
 				})
 				if (res.ok) effects = await res.json()
@@ -113,61 +102,84 @@ export default plugin({
 		})
 
 		cleanup(
-			instead(MessageActions, 'sendMessage', (args, original) => {
-				const [channelId, message] = args
-				if (getEffect('gag')) {
-					notify(channelId, 'Dumb mutt, don\'t try to speak.')
-					return Promise.resolve()
-				}
-
-				const replaced = overwrite(message?.content)
-				if (replaced !== undefined) args[1] = { ...message, content: replaced }
-
-				return original(...args)
-			}),
+			getModules(withProps<any>('sendMessage', 'editMessage'), MessageActions =>
+				patchMessageActions(MessageActions),
+			),
 		)
-
 		cleanup(
-			instead(MessageActions, 'sendStickers', (args, original) => {
-				if (!getEffect('gag')) return original(...args)
-				notify(args[0], 'You can\'t speak puppy~')
-				return Promise.resolve()
-			}),
+			getModules(withProps<any>('getAPIBaseURL', 'setRequestPatch'), HTTP =>
+				patchHTTP(HTTP),
+			),
 		)
 
-		cleanup(
-			instead(MessageActions, 'editMessage', (args, original) => {
-				if (getEffect('gag')) {
-					notify(args[0], 'Don\'t try editing your messages~')
-					try {
-						MessageActions.endEditMessage(args[0])
-					} catch {}
-					return Promise.resolve()
+		function patchMessageActions(MessageActions: any) {
+			const notify = (channelId: string, text: string) => {
+				try {
+					MessageActions.sendBotMessage(channelId, text)
+				} catch (e) {
+					console.warn('[bdsm] failed to show notice', e)
 				}
+			}
 
-				const replaced = overwrite(args[2]?.content)
-				if (replaced !== undefined) args[2] = { ...args[2], content: replaced }
+			cleanup(
+				instead(MessageActions, 'sendMessage', (args, original) => {
+					const [channelId, message] = args
+					if (getEffect('gag')) {
+						notify(channelId, 'Dumb mutt, don\'t try to speak.')
+						return Promise.resolve()
+					}
 
-				return original(...args)
-			}),
-		)
+					const replaced = overwrite(message?.content)
+					if (replaced !== undefined) args[1] = { ...message, content: replaced }
 
-		for (const target of new Set([HTTP, HTTP.HTTP].filter(Boolean))) {
-			for (const method of ['post', 'patch']) {
-				cleanup(
-					instead(target, method, (args, original) => {
-						const path = requestPath(args[0])
-						const blocked =
-							getEffect('gag') &&
-							GAGGED_ROUTES.some(([m, re]) => m === method && re.test(path))
-						if (!blocked) return original(...args)
+					return original(...args)
+				}),
+			)
 
-						const err: any = new Error('You\'re the defect for a reason.')
-						err.status = 403
-						err.body = { message: err.message, code: 50013 }
-						return Promise.reject(err)
-					}),
-				)
+			cleanup(
+				instead(MessageActions, 'sendStickers', (args, original) => {
+					if (!getEffect('gag')) return original(...args)
+					notify(args[0], 'You can\'t speak puppy~')
+					return Promise.resolve()
+				}),
+			)
+
+			cleanup(
+				instead(MessageActions, 'editMessage', (args, original) => {
+					if (getEffect('gag')) {
+						notify(args[0], 'Don\'t try editing your messages~')
+						try {
+							MessageActions.endEditMessage(args[0])
+						} catch {}
+						return Promise.resolve()
+					}
+
+					const replaced = overwrite(args[2]?.content)
+					if (replaced !== undefined) args[2] = { ...args[2], content: replaced }
+
+					return original(...args)
+				}),
+			)
+		}
+
+		function patchHTTP(HTTP: any) {
+			for (const target of new Set([HTTP, HTTP.HTTP].filter(Boolean))) {
+				for (const method of ['post', 'patch']) {
+					cleanup(
+						instead(target, method, (args, original) => {
+							const path = requestPath(args[0])
+							const blocked =
+								getEffect('gag') &&
+								GAGGED_ROUTES.some(([m, re]) => m === method && re.test(path))
+							if (!blocked) return original(...args)
+
+							const err: any = new Error('You\'re the defect for a reason.')
+							err.status = 403
+							err.body = { message: err.message, code: 50013 }
+							return Promise.reject(err)
+						}),
+					)
+				}
 			}
 		}
 	},
