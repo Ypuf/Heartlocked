@@ -4,7 +4,8 @@
 	"type": "module",
 	"scripts": {
 		"build": "valenced-plugin build && bun scripts/package.ts",
-		"serve": "valenced-plugin serve"
+		"serve": "valenced-plugin serve",
+		"debug": "bun scripts/debug.ts"
 	},
 	"dependencies": {
 		"@valenced/plugin-cli": "git+https://github.com/Valenced/valenced-plugin-cli.git",

@@ -1,7 +1,7 @@
 import { getModules } from '@valenced/modules/finders'
 import { withProps } from '@valenced/modules/finders/filters'
 import { instead } from '@valenced/patcher'
-import { AppState } from 'react-native'
+import { AppState, BackHandler } from 'react-native'
 
 interface Effect {
 	created_at: number
@@ -87,7 +87,96 @@ export default plugin({
 				clearTimeout(timeout)
 				refreshing = false
 			}
+			pullBack()
 		}
+
+		const CLOSED_WHILE_LOCKED = ['sidebar']
+		let ChannelStore: any
+		let Navigation: any
+		let navRef: any
+		let lastPull = 0
+		let retry: ReturnType<typeof setTimeout> | undefined
+
+		cleanup(
+			getModules(withProps<any>('getChannel', 'getDMFromUserId'), store => {
+				ChannelStore = store
+			}),
+		)
+		cleanup(
+			getModules(withProps<any>('transitionTo', 'transitionToGuild'), mod => {
+				Navigation = mod
+			}),
+		)
+		cleanup(
+			getModules(withProps<any>('getRootNavigationRef'), mod => {
+				navRef = mod.getRootNavigationRef()
+				cleanup(navRef.addListener('state', () => setTimeout(pullBack, 0)))
+				pullBack()
+			}),
+		)
+		cleanup(() => clearTimeout(retry))
+
+		function lockedChannelId(): string | undefined {
+			const details = getEffect('lock')?.details
+			if (!details || !ChannelStore) return
+			if (details.channel_id) return String(details.channel_id)
+			if (details.user_id)
+				return ChannelStore.getDMFromUserId(String(details.user_id)) ?? undefined
+		}
+
+		function channelPath(channelId: string) {
+			const guildId = ChannelStore.getChannel(channelId)?.guild_id
+			return `/channels/${guildId ?? '@me'}/${channelId}`
+		}
+
+		function mainStack() {
+			let state = navRef?.isReady?.() ? navRef.getRootState() : undefined
+			while (state) {
+				if (state.routes.some((r: any) => r.name === 'tabs')) return state
+				state = state.routes[state.index]?.state
+			}
+		}
+
+		function inLockedChannel(channelId: string) {
+			const stack = mainStack()
+			if (!stack) return true
+			const top = stack.routes[stack.routes.length - 1]
+			return top?.name === 'channel' && top.params?.channelId === channelId
+		}
+
+		function blockedOverlayOpen() {
+			const root = navRef?.isReady?.() ? navRef.getRootState() : undefined
+			const top = root?.routes[root.index]
+			return !!top && CLOSED_WHILE_LOCKED.includes(top.name)
+		}
+
+		function pullBack() {
+			const channelId = lockedChannelId()
+			if (!channelId || !Navigation) return
+			const overlay = blockedOverlayOpen()
+			if (!overlay && inLockedChannel(channelId)) return
+
+			const wait = 500 - (Date.now() - lastPull)
+			if (wait > 0) {
+				clearTimeout(retry)
+				retry = setTimeout(pullBack, wait)
+				return
+			}
+
+			lastPull = Date.now()
+			if (overlay) navRef.goBack()
+			else Navigation.transitionTo(channelPath(channelId))
+		}
+
+		const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+			const channelId = lockedChannelId()
+			return (
+				!!channelId &&
+				navRef?.getCurrentRoute?.()?.name === 'channel' &&
+				inLockedChannel(channelId)
+			)
+		})
+		cleanup(() => backHandler.remove())
 
 		refresh()
 		const interval = setInterval(refresh, 15000)
