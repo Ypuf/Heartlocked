@@ -1,3 +1,5 @@
 node_modules/
 build/
 plugins/*/build/
+
+.env.local

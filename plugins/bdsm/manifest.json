@@ -4,7 +4,7 @@
 	"name": "Heartlocked",
 	"description": "Dumb mutt internals get edited.",
 	"author": "ypuf",
-	"version": "1.2.0",
+	"version": "1.3.0",
 	"dependencies": {
 		"valenced.api": {
 			"version": ">=1 <2"

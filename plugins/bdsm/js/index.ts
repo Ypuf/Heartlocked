@@ -1,7 +1,18 @@
 import { getModules } from '@valenced/modules/finders'
 import { withProps } from '@valenced/modules/finders/filters'
 import { instead } from '@valenced/patcher'
+import { ConvexClient } from 'convex/browser'
+import { makeFunctionReference } from 'convex/server'
 import { AppState, BackHandler } from 'react-native'
+
+const CONVEX_URL = 'https://hushed-jackal-691.convex.cloud'
+const CONVEX_SITE_URL = 'https://hushed-jackal-691.convex.site'
+
+const forUser = makeFunctionReference<
+	'query',
+	{ userId: string },
+	Record<string, Effect>
+>('effects:forUser')
 
 interface Effect {
 	created_at: number
@@ -67,17 +78,42 @@ export default plugin({
 			),
 		)
 
+		const convex = new ConvexClient(CONVEX_URL, { unsavedChangesWarning: false })
+		let subscribedTo: string | undefined
+		let unsubscribe: (() => void) | undefined
+		cleanup(() => {
+			unsubscribe?.()
+			void convex.close()
+		})
+
+		function subscribe(userId: string) {
+			if (subscribedTo === userId) return
+			unsubscribe?.()
+			subscribedTo = userId
+			unsubscribe = convex.onUpdate(
+				forUser,
+				{ userId },
+				value => {
+					effects = value ?? {}
+					pullBack()
+				},
+				e => console.warn('[bdsm] subscription failed', e),
+			)
+		}
+
 		let refreshing = false
 
 		async function refresh() {
 			const me = UserStore?.getCurrentUser()
-			if (!me || refreshing) return
+			if (!me) return
+			subscribe(me.id)
+			if (refreshing || convex.connectionState().isWebSocketConnected) return
 
 			refreshing = true
 			const controller = new AbortController()
 			const timeout = setTimeout(() => controller.abort(), 10000)
 			try {
-				const res = await fetch(`https://bdsm.jpuf.xyz/users/${me.id}`, {
+				const res = await fetch(`${CONVEX_SITE_URL}/users/${me.id}`, {
 					signal: controller.signal,
 				})
 				if (res.ok) effects = await res.json()
@@ -179,7 +215,7 @@ export default plugin({
 		cleanup(() => backHandler.remove())
 
 		refresh()
-		const interval = setInterval(refresh, 15000)
+		const interval = setInterval(refresh, 30000)
 		cleanup(() => clearInterval(interval))
 
 		const appState = AppState.addEventListener('change', state => {
